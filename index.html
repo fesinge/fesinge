@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Portafoglio — tracker investimenti ETF, azioni e crypto con prezzi live, simulatore PAC e ribilanciamento. Privacy-first, dati solo nel tuo browser." />
+  <meta name="description" content="Portafoglio — tracker investimenti ETF, azioni e crypto con prezzi live, storico, simulatore PAC e ribilanciamento. Privacy-first, dati solo nel tuo browser." />
+  <meta name="theme-color" content="#0c0f14" />
   <title>Portafoglio · ETF · Azioni · Crypto</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
   <script src="app.js" defer></script>
@@ -25,8 +28,9 @@
       <button class="tab" data-view="pac">Simulatore PAC</button>
     </nav>
     <div class="topbar-actions">
-      <span class="status" id="priceStatus" title="Stato prezzi crypto">·</span>
-      <button class="btn ghost" id="refreshBtn" title="Aggiorna prezzi crypto">↻</button>
+      <button class="btn ghost" id="installBtn" title="Installa l'app" hidden>⬇ Installa</button>
+      <span class="status" id="priceStatus" title="Stato prezzi live">·</span>
+      <button class="btn ghost" id="refreshBtn" title="Aggiorna prezzi live">↻</button>
     </div>
   </header>
 
@@ -49,6 +53,15 @@
           <span class="kpi-value" id="kpiCount">0</span>
           <span class="kpi-sub" id="kpiClasses">—</span>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head row">
+          <h2>Andamento del valore</h2>
+          <button class="btn ghost" id="clearHistoryBtn" title="Cancella lo storico">Azzera storico</button>
+        </div>
+        <div class="chart-wrap tall"><canvas id="historyChart"></canvas></div>
+        <p class="muted" id="historyHint">Lo storico si costruisce nel tempo: ogni giorno che apri l'app viene salvata un'istantanea del valore totale.</p>
       </div>
 
       <div class="grid-2">
@@ -92,9 +105,10 @@
               <option value="Liquidità">Liquidità</option>
             </select>
           </div>
-          <div class="field crypto-only" hidden>
-            <label>ID CoinGecko <span class="muted">(prezzo live)</span></label>
-            <input type="text" id="hCoinId" placeholder="es. bitcoin, ethereum, solana" />
+          <div class="field symbol-field" hidden>
+            <label id="symbolLabel">Simbolo prezzo live</label>
+            <input type="text" id="hSymbol" placeholder="es. aapl.us" />
+            <span class="muted hint" id="symbolHint"></span>
           </div>
           <div class="field">
             <label>Quantità</label>
@@ -192,7 +206,7 @@
   </main>
 
   <footer class="footer">
-    <p>I dati restano nel tuo browser (localStorage). Prezzi crypto via CoinGecko. <strong>Non è consulenza finanziaria.</strong></p>
+    <p>I dati restano nel tuo browser (localStorage). Prezzi crypto via CoinGecko, azioni/ETF via Stooq. <strong>Non è consulenza finanziaria.</strong></p>
   </footer>
 </body>
 </html>

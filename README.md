@@ -2,9 +2,9 @@
 
 Tracker di investimenti **multi-asset** che funziona interamente nel browser.
 Niente account, niente backend, niente cloud: i tuoi dati restano **solo nel tuo
-dispositivo** (localStorage). Pensato per essere la cosa più utile e logica nel
-2026: un'unica vista su ETF, azioni e crypto, con prezzi crypto live, simulatore
-di PAC e suggerimenti di ribilanciamento.
+dispositivo** (localStorage). Un'unica vista su ETF, azioni e crypto, con prezzi
+live, storico del valore, simulatore di PAC e suggerimenti di ribilanciamento.
+Installabile come **app** (PWA) e utilizzabile **offline**.
 
 > ⚠️ Strumento **educativo**. Non è consulenza finanziaria.
 
@@ -12,31 +12,41 @@ di PAC e suggerimenti di ribilanciamento.
 
 - **Dashboard** — valore totale, plus/minusvalenza, allocazione per classe
   (grafico a ciambella) e top posizioni.
+- **Storico del valore** — ogni giorno che apri l'app salva un'istantanea del
+  valore totale e la mostra in un grafico nel tempo.
 - **Posizioni** — aggiungi/rimuovi ETF, azioni, crypto, obbligazioni e
   liquidità con quantità, prezzo di carico e prezzo attuale.
-- **Prezzi crypto live** — aggiornamento automatico via API pubblica
-  [CoinGecko](https://www.coingecko.com/) (basta inserire l'ID della moneta,
-  es. `bitcoin`, `ethereum`, `solana`).
+- **Prezzi live**
+  - **Crypto** via [CoinGecko](https://www.coingecko.com/) — inserisci l'ID
+    moneta (es. `bitcoin`, `ethereum`, `solana`). Prezzo in EUR.
+  - **Azioni / ETF** via [Stooq](https://stooq.com/) — inserisci il ticker
+    (es. `aapl.us`, `enel.it`, `vwce.de`). Il prezzo è nella valuta della borsa:
+    per restare in EUR usa la quotazione su una borsa europea (es. `.de`, `.it`).
 - **Ribilanciamento** — imposti le percentuali obiettivo per ogni classe e
   l'app ti dice quanto comprare/vendere per raggiungerle.
 - **Simulatore PAC** — interesse composto con versamenti mensili, rendimento
   atteso e correzione per l'inflazione (valore reale).
-- **Import / Export** — backup e ripristino del portafoglio in formato JSON.
+- **Import / Export** — backup e ripristino di posizioni, obiettivi e storico
+  in formato JSON.
+- **PWA** — installabile su desktop e mobile, con cache offline dell'app.
 - **Privacy-first** — nessun dato lascia il browser.
 
 ## 🚀 Come si usa
 
-È un sito statico: nessuna installazione, nessun build.
+È un sito statico: nessuna installazione, nessun build. Per far funzionare
+prezzi live, service worker e installazione PWA serve servirlo via HTTP:
 
-1. Apri `index.html` nel browser (doppio click), **oppure**
-2. Servilo localmente per far funzionare i prezzi crypto senza problemi CORS:
+```bash
+python3 -m http.server 8000
+# poi vai su http://localhost:8000
+```
 
-   ```bash
-   python3 -m http.server 8000
-   # poi vai su http://localhost:8000
-   ```
+In alternativa apri direttamente `index.html` (i prezzi live potrebbero essere
+bloccati dalle regole CORS del browser; i prezzi inseriti a mano funzionano
+sempre).
 
 Premi **Esempio** nella scheda *Posizioni* per caricare un portafoglio demo.
+Quando il browser lo consente, compare il pulsante **⬇ Installa** in alto.
 
 ## 🧱 Stack
 
@@ -44,14 +54,22 @@ HTML + CSS + JavaScript vanilla. Unica dipendenza esterna:
 [Chart.js](https://www.chartjs.org/) via CDN per i grafici.
 
 ```
-index.html   → struttura e viste
-styles.css   → tema scuro, layout responsive
-app.js       → stato, calcoli, grafici, fetch prezzi
+index.html     → struttura e viste
+styles.css     → tema scuro, layout responsive
+app.js         → stato, calcoli, grafici, prezzi live, storico, PWA
+manifest.json  → metadati PWA
+sw.js          → service worker (cache offline dell'app shell)
+icon.svg       → icona dell'app
 ```
 
 ## 🔒 Note
 
-- I prezzi crypto richiedono connessione a CoinGecko; se non disponibile, l'app
-  resta utilizzabile usando i prezzi inseriti manualmente.
+- I prezzi live richiedono connessione a CoinGecko/Stooq. Se l'API è
+  irraggiungibile o bloccata da CORS, l'app resta utilizzabile con i prezzi
+  inseriti manualmente (lo stato in alto mostra *prezzi offline*).
+- **Valute**: Stooq restituisce il prezzo nella valuta della borsa. L'app non
+  converte: per coerenza in EUR usa simboli quotati in EUR.
 - I dati sono salvati in `localStorage`: cancellando i dati del sito li perdi
   (usa **Esporta** per il backup).
+- Lo storico è giornaliero e si costruisce nel tempo: il primo grafico significativo
+  appare dopo almeno due giorni di utilizzo (o importando un backup con storico).

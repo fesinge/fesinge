@@ -1,25 +1,35 @@
 /* Portafoglio — tracker investimenti ETF / Azioni / Crypto
- * 100% client-side. Dati in localStorage. Prezzi crypto via CoinGecko.
+ * 100% client-side. Dati in localStorage.
+ * Prezzi: crypto via CoinGecko, azioni/ETF via Stooq.
  * Non è consulenza finanziaria.
  */
 "use strict";
 
 const STORE_KEY = "portafoglio.holdings.v1";
 const TARGET_KEY = "portafoglio.targets.v1";
+const HISTORY_KEY = "portafoglio.history.v1";
 const CLASSES = ["ETF", "Azioni", "Crypto", "Obbligazioni", "Liquidità"];
 const CLASS_COLORS = {
   ETF: "#5b8cff", Azioni: "#7c5bff", Crypto: "#ffb15b",
   Obbligazioni: "#2ecc71", "Liquidità": "#8b95a7",
+};
+// Classi che supportano prezzo live e tramite quale fonte
+const LIVE = {
+  Crypto: { source: "coingecko", label: "ID CoinGecko (prezzo live)", hint: "es. bitcoin, ethereum, solana — prezzo in EUR" },
+  ETF: { source: "stooq", label: "Ticker Stooq (prezzo live)", hint: "es. vwce.de, csspx.uk — usa la borsa in EUR per evitare conversioni" },
+  Azioni: { source: "stooq", label: "Ticker Stooq (prezzo live)", hint: "es. aapl.us, enel.it — il prezzo è nella valuta della borsa" },
 };
 
 const euro = (n) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0);
 const pct = (n) => `${n >= 0 ? "+" : ""}${(n || 0).toFixed(2)}%`;
 const uid = () => Math.random().toString(36).slice(2, 9);
+const today = () => new Date().toISOString().slice(0, 10);
 
 /* ---------- State ---------- */
-let holdings = load(STORE_KEY, []);
+let holdings = load(STORE_KEY, []).map(migrate);
 let targets = load(TARGET_KEY, { ETF: 50, Azioni: 20, Crypto: 10, Obbligazioni: 15, "Liquidità": 5 });
+let history = load(HISTORY_KEY, []);
 let charts = {};
 
 function load(key, fallback) {
@@ -29,6 +39,14 @@ function load(key, fallback) {
 function save() {
   localStorage.setItem(STORE_KEY, JSON.stringify(holdings));
   localStorage.setItem(TARGET_KEY, JSON.stringify(targets));
+}
+function saveHistory() { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
+
+// Migrazione vecchio campo coinId -> symbol
+function migrate(h) {
+  if (h.symbol == null && h.coinId != null) h.symbol = h.coinId;
+  if (h.symbol == null) h.symbol = "";
+  return h;
 }
 
 /* ---------- Derived helpers ---------- */
@@ -58,9 +76,18 @@ document.getElementById("tabs").addEventListener("click", (e) => {
 /* ============ HOLDINGS FORM ============ */
 const form = document.getElementById("holdingForm");
 const classSel = document.getElementById("hClass");
-classSel.addEventListener("change", () => {
-  document.querySelector(".crypto-only").hidden = classSel.value !== "Crypto";
-});
+
+function updateSymbolField() {
+  const cfg = LIVE[classSel.value];
+  const field = document.querySelector(".symbol-field");
+  field.hidden = !cfg;
+  if (cfg) {
+    document.getElementById("symbolLabel").textContent = cfg.label;
+    document.getElementById("symbolHint").textContent = cfg.hint;
+    document.getElementById("hSymbol").placeholder = cfg.source === "stooq" ? "es. aapl.us" : "es. bitcoin";
+  }
+}
+classSel.addEventListener("change", updateSymbolField);
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -68,7 +95,7 @@ form.addEventListener("submit", (e) => {
     id: uid(),
     name: document.getElementById("hName").value.trim(),
     cls: classSel.value,
-    coinId: document.getElementById("hCoinId").value.trim().toLowerCase(),
+    symbol: document.getElementById("hSymbol").value.trim().toLowerCase(),
     qty: +document.getElementById("hQty").value,
     avg: +document.getElementById("hAvg").value,
     now: document.getElementById("hNow").value === "" ? null : +document.getElementById("hNow").value,
@@ -77,9 +104,9 @@ form.addEventListener("submit", (e) => {
   holdings.push(h);
   save();
   form.reset();
-  document.querySelector(".crypto-only").hidden = true;
+  updateSymbolField();
   renderHoldings();
-  if (h.coinId) refreshPrices();
+  if (h.symbol) refreshPrices();
 });
 
 /* ============ HOLDINGS TABLE ============ */
@@ -96,7 +123,7 @@ function renderHoldings() {
     const cls = pnl >= 0 ? "pos" : "neg";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${esc(h.name)}</strong>${h.coinId ? `<br><span class="muted">${esc(h.coinId)}</span>` : ""}</td>
+      <td><strong>${esc(h.name)}</strong>${h.symbol ? `<br><span class="muted">${esc(h.symbol)}</span>` : ""}</td>
       <td><span class="badge">${h.cls}</span></td>
       <td class="num">${fmtNum(h.qty)}</td>
       <td class="num">${euro(h.avg)}</td>
@@ -133,6 +160,7 @@ function renderDashboard() {
   const classes = [...new Set(holdings.map((h) => h.cls))];
   document.getElementById("kpiClasses").textContent = classes.join(" · ") || "—";
 
+  renderHistoryChart();
   renderAllocChart();
   renderTopChart();
   renderRebalance();
@@ -185,6 +213,60 @@ document.getElementById("rebalance").addEventListener("input", (e) => {
   renderRebalance();
 });
 
+/* ============ HISTORY (snapshot del valore) ============ */
+function recordSnapshot() {
+  if (!holdings.length) return;
+  const val = +totalValue().toFixed(2);
+  const d = today();
+  const last = history[history.length - 1];
+  if (last && last.date === d) last.value = val;     // aggiorna l'istantanea di oggi
+  else history.push({ date: d, value: val });
+  if (history.length > 1825) history = history.slice(-1825); // ~5 anni
+  saveHistory();
+}
+
+function renderHistoryChart() {
+  const hint = document.getElementById("historyHint");
+  const ctx = document.getElementById("historyChart");
+  if (!ctx || !window.Chart) return;
+  charts.history?.destroy();
+
+  if (history.length < 2) {
+    hint.hidden = false;
+    emptyChart("historyChart");
+    return;
+  }
+  hint.hidden = true;
+  const labels = history.map((p) => p.date);
+  const data = history.map((p) => p.value);
+  charts.history = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Valore", data,
+        borderColor: "#5b8cff", backgroundColor: "rgba(91,140,255,0.15)",
+        fill: true, tension: 0.25, pointRadius: 0, borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => euro(c.parsed.y) } } },
+      scales: {
+        x: { ticks: { color: "#8b95a7", maxTicksLimit: 8 }, grid: { color: "#28303f" } },
+        y: { ticks: { color: "#8b95a7", callback: (v) => `€${(v / 1000).toFixed(1)}k` }, grid: { color: "#28303f" } },
+      },
+    },
+  });
+}
+
+document.getElementById("clearHistoryBtn").addEventListener("click", () => {
+  if (!confirm("Cancellare tutto lo storico del valore?")) return;
+  history = [];
+  saveHistory();
+  renderHistoryChart();
+});
+
 /* ============ CHART HELPERS ============ */
 function drawDoughnut(id, labels, data, colors) {
   const ctx = document.getElementById(id);
@@ -224,46 +306,85 @@ function drawBar(id, labels, data, colors) {
 }
 
 function emptyChart(id) {
-  const ctx = document.getElementById(id).getContext("2d");
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const c = document.getElementById(id);
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
   ctx.fillStyle = "#8b95a7";
   ctx.font = "14px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("Nessun dato", ctx.canvas.width / 2, ctx.canvas.height / 2);
+  ctx.fillText("Nessun dato", c.width / 2, c.height / 2);
 }
 
-/* ============ CRYPTO PRICES (CoinGecko) ============ */
+/* ============ LIVE PRICES ============ */
 async function refreshPrices() {
-  const ids = [...new Set(holdings.filter((h) => h.coinId).map((h) => h.coinId))];
   const statusEl = document.getElementById("priceStatus");
-  if (!ids.length) { statusEl.textContent = "·"; statusEl.className = "status"; return; }
+  const cryptoIds = [...new Set(holdings.filter((h) => LIVE[h.cls]?.source === "coingecko" && h.symbol).map((h) => h.symbol))];
+  const stooqSyms = [...new Set(holdings.filter((h) => LIVE[h.cls]?.source === "stooq" && h.symbol).map((h) => h.symbol))];
 
+  if (!cryptoIds.length && !stooqSyms.length) { statusEl.textContent = "·"; statusEl.className = "status"; return; }
   statusEl.textContent = "aggiorno…"; statusEl.className = "status";
-  try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=eur`;
-    const res = await fetch(url, { headers: { accept: "application/json" } });
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    let updated = 0;
-    for (const h of holdings) {
-      if (h.coinId && data[h.coinId]?.eur != null) { h.now = data[h.coinId].eur; updated++; }
-    }
-    save();
-    statusEl.textContent = `● ${updated} live`; statusEl.className = "status ok";
-    renderHoldings();
-    if (document.getElementById("view-dashboard").classList.contains("active")) renderDashboard();
-  } catch (err) {
-    statusEl.textContent = "● prezzi offline"; statusEl.className = "status err";
+
+  let updated = 0, failed = 0;
+  const results = await Promise.allSettled([
+    cryptoIds.length ? fetchCrypto(cryptoIds) : Promise.resolve({}),
+    stooqSyms.length ? fetchStooq(stooqSyms) : Promise.resolve({}),
+  ]);
+  const prices = {};
+  for (const r of results) {
+    if (r.status === "fulfilled") Object.assign(prices, r.value);
+    else failed++;
   }
+  for (const h of holdings) {
+    if (h.symbol && prices[h.symbol] != null) { h.now = prices[h.symbol]; updated++; }
+  }
+  save();
+
+  if (updated) { statusEl.textContent = `● ${updated} live`; statusEl.className = "status ok"; }
+  else { statusEl.textContent = "● prezzi offline"; statusEl.className = "status err"; }
+
+  renderHoldings();
+  recordSnapshot();
+  if (document.getElementById("view-dashboard").classList.contains("active")) renderDashboard();
 }
+
+async function fetchCrypto(ids) {
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=eur`;
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error("coingecko " + res.status);
+  const data = await res.json();
+  const out = {};
+  for (const id of ids) if (data[id]?.eur != null) out[id] = data[id].eur;
+  return out;
+}
+
+// Stooq: CSV per simbolo. Es. https://stooq.com/q/l/?s=aapl.us&f=sd2t2ohlcv&h&e=csv
+async function fetchStooq(syms) {
+  const out = {};
+  await Promise.all(syms.map(async (s) => {
+    try {
+      const url = `https://stooq.com/q/l/?s=${encodeURIComponent(s)}&f=sd2t2ohlcv&h&e=csv`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const text = (await res.text()).trim();
+      const lines = text.split("\n");
+      if (lines.length < 2) return;
+      const cols = lines[1].split(",");
+      const close = parseFloat(cols[6]); // Symbol,Date,Time,Open,High,Low,Close,Volume
+      if (!isNaN(close) && close > 0) out[s] = close;
+    } catch { /* skip simbolo */ }
+  }));
+  if (!Object.keys(out).length) throw new Error("stooq: nessun prezzo (possibile blocco CORS)");
+  return out;
+}
+
 document.getElementById("refreshBtn").addEventListener("click", refreshPrices);
 
 /* ============ IMPORT / EXPORT / SEED ============ */
 document.getElementById("exportBtn").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify({ holdings, targets }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ holdings, targets, history }, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `portafoglio-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `portafoglio-${today()}.json`;
   a.click();
 });
 document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
@@ -274,8 +395,9 @@ document.getElementById("importFile").addEventListener("change", (e) => {
   reader.onload = () => {
     try {
       const obj = JSON.parse(reader.result);
-      if (Array.isArray(obj.holdings)) holdings = obj.holdings;
+      if (Array.isArray(obj.holdings)) holdings = obj.holdings.map(migrate);
       if (obj.targets) targets = obj.targets;
+      if (Array.isArray(obj.history)) { history = obj.history; saveHistory(); }
       save(); renderHoldings(); refreshPrices();
     } catch { alert("File non valido."); }
   };
@@ -284,12 +406,12 @@ document.getElementById("importFile").addEventListener("change", (e) => {
 
 function seed() {
   holdings = [
-    { id: uid(), name: "VWCE", cls: "ETF", coinId: "", qty: 25, avg: 105, now: 118 },
-    { id: uid(), name: "SWDA", cls: "ETF", coinId: "", qty: 30, avg: 80, now: 92 },
-    { id: uid(), name: "Apple", cls: "Azioni", coinId: "", qty: 8, avg: 160, now: 195 },
-    { id: uid(), name: "Bitcoin", cls: "Crypto", coinId: "bitcoin", qty: 0.05, avg: 38000, now: 38000 },
-    { id: uid(), name: "Ethereum", cls: "Crypto", coinId: "ethereum", qty: 0.8, avg: 2200, now: 2200 },
-    { id: uid(), name: "Conto deposito", cls: "Liquidità", coinId: "", qty: 1, avg: 3000, now: 3000 },
+    { id: uid(), name: "VWCE", cls: "ETF", symbol: "vwce.de", qty: 25, avg: 105, now: 118 },
+    { id: uid(), name: "SWDA", cls: "ETF", symbol: "", qty: 30, avg: 80, now: 92 },
+    { id: uid(), name: "Apple", cls: "Azioni", symbol: "aapl.us", qty: 8, avg: 160, now: 195 },
+    { id: uid(), name: "Bitcoin", cls: "Crypto", symbol: "bitcoin", qty: 0.05, avg: 38000, now: 38000 },
+    { id: uid(), name: "Ethereum", cls: "Crypto", symbol: "ethereum", qty: 0.8, avg: 2200, now: 2200 },
+    { id: uid(), name: "Conto deposito", cls: "Liquidità", symbol: "", qty: 1, avg: 3000, now: 3000 },
   ];
   save(); renderHoldings(); refreshPrices();
 }
@@ -364,12 +486,34 @@ function drawPacChart(labels, value, invested) {
   });
 }
 
+/* ============ PWA ============ */
+let deferredPrompt = null;
+const installBtn = document.getElementById("installBtn");
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBtn.hidden = false;
+});
+installBtn.addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installBtn.hidden = true;
+});
+window.addEventListener("appinstalled", () => { installBtn.hidden = true; });
+
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+
 /* ============ UTILS ============ */
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function fmtNum(n) { return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 8 }).format(n); }
 
 /* ============ INIT ============ */
 function init() {
+  updateSymbolField();
   renderHoldings();
   renderDashboard();
   renderPac();
