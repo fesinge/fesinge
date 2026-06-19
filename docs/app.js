@@ -17,6 +17,16 @@
     document.title = (S.brand.name || "Store") + " — Design digitale";
   }
 
+  /* ---- Barra sconto di lancio ---- */
+  var promoBar = document.getElementById("promo-bar");
+  if (promoBar && S.promo && S.promo.show) {
+    var codeHtml = S.promo.code
+      ? ' <strong class="promo__code">' + esc(S.promo.code) + "</strong>"
+      : "";
+    promoBar.innerHTML = esc(S.promo.text || "") + codeHtml;
+    promoBar.hidden = false;
+  }
+
   /* ---- Prodotti ---- */
   var grid = document.getElementById("product-grid");
   if (grid && Array.isArray(S.products)) {

@@ -61,6 +61,16 @@ Apri `docs/config.js` e per ogni prodotto compila `buyUrl` con il link Stripe:
 
 Salva, fai commit/push → il sito si aggiorna da solo. **Fatto.** 🎉
 
+> 💡 **Pagina "grazie":** in ogni Payment Link di Stripe, alla voce
+> *"After payment → Redirect customers"* incolla
+> `https://fesinge.github.io/fesinge/grazie.html`. Così, dopo l'acquisto, il
+> cliente vede una pagina di ringraziamento in linea con il brand.
+
+> 🏷️ **Sconto di lancio:** la barra in cima al sito mostra un codice
+> (di default `LANCIO20`). Crealo davvero su Stripe in
+> *Prodotti → Coupon / Promotion codes* e modifica testo/codice in
+> `config.js → promo`. Metti `show: false` per nasconderla.
+
 ---
 
 ## 🧩 Le 3 fonti di guadagno (già predisposte)

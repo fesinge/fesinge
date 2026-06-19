@@ -56,7 +56,7 @@ window.STORE = {
     {
       id: "icon-pack",
       name: "Minimal Icon Pack",
-      description: "300 icone vettoriali (SVG) coerenti, perfette per app e siti.",
+      description: "23 icone vettoriali (SVG) coerenti, perfette per app e siti.",
       price: "€19",
       badge: "",
       emoji: "✨",
@@ -72,6 +72,17 @@ window.STORE = {
       buyUrl: "",
     },
   ],
+
+  /* --- Sconto di lancio (opzionale) ----------------------------- *
+   * Mostra una barra in cima al sito con un codice sconto.
+   * Crea il codice su Stripe (Prodotti → Coupon / Promotion codes)
+   * e scrivilo qui in "code". Metti "show: false" per nasconderla.
+   * ------------------------------------------------------------- */
+  promo: {
+    show: true,
+    text: "🚀 Sconto di lancio: -20% su tutto con il codice",
+    code: "LANCIO20",
+  },
 
   /* --- Newsletter ----------------------------------------------- *
    * Per raccogliere email (lead = vendite future automatiche).
