@@ -16,12 +16,17 @@ Installabile come **app** (PWA) e utilizzabile **offline**.
   valore totale e la mostra in un grafico nel tempo.
 - **Posizioni** — aggiungi/rimuovi ETF, azioni, crypto, obbligazioni e
   liquidità con quantità, prezzo di carico e prezzo attuale.
-- **Prezzi live**
-  - **Crypto** via [CoinGecko](https://www.coingecko.com/) — inserisci l'ID
-    moneta (es. `bitcoin`, `ethereum`, `solana`). Prezzo in EUR.
-  - **Azioni / ETF** via [Stooq](https://stooq.com/) — inserisci il ticker
-    (es. `aapl.us`, `enel.it`, `vwce.de`). Il prezzo è nella valuta della borsa:
-    per restare in EUR usa la quotazione su una borsa europea (es. `.de`, `.it`).
+- **Prezzi live con ricerca** — scegli la classe, scrivi il nome (es. *Apple*,
+  *Bitcoin*, *VWCE*) e seleziona il risultato dal menù a tendina: il simbolo per
+  il prezzo live viene compilato automaticamente, non devi conoscere ticker o ID.
+  - **Crypto** via [CoinGecko](https://www.coingecko.com/) — ricerca completa,
+    prezzo in EUR.
+  - **Azioni / ETF** via [Stooq](https://stooq.com/) — i titoli/ETF più comuni
+    sono in un catalogo integrato; per gli altri c'è il campo *simbolo manuale*.
+    Il prezzo è nella valuta della borsa, quindi per gli ETF il catalogo usa le
+    quotazioni in EUR dove possibile.
+  - Una volta aggiunta la posizione, **i prezzi si aggiornano da soli** ad ogni
+    apertura dell'app: non vanno inseriti né aggiornati a mano.
 - **Ribilanciamento** — imposti le percentuali obiettivo per ogni classe e
   l'app ti dice quanto comprare/vendere per raggiungerle.
 - **Simulatore PAC** — interesse composto con versamenti mensili, rendimento

@@ -14,11 +14,44 @@ const CLASS_COLORS = {
   Obbligazioni: "#2ecc71", "Liquidità": "#8b95a7",
 };
 // Classi che supportano prezzo live e tramite quale fonte
+// Quali classi supportano il prezzo live e tramite quale fonte
 const LIVE = {
-  Crypto: { source: "coingecko", label: "ID CoinGecko (prezzo live)", hint: "es. bitcoin, ethereum, solana — prezzo in EUR" },
-  ETF: { source: "stooq", label: "Ticker Stooq (prezzo live)", hint: "es. vwce.de, csspx.uk — usa la borsa in EUR per evitare conversioni" },
-  Azioni: { source: "stooq", label: "Ticker Stooq (prezzo live)", hint: "es. aapl.us, enel.it — il prezzo è nella valuta della borsa" },
+  Crypto: { source: "coingecko" }, // ricerca via API CoinGecko
+  ETF: { source: "stooq" },        // ricerca nel catalogo locale
+  Azioni: { source: "stooq" },     // ricerca nel catalogo locale
 };
+
+// Catalogo per azioni/ETF: nome cercabile -> ticker Stooq.
+// Stooq non offre una ricerca pubblica affidabile, quindi i titoli/ETF più
+// comuni sono pronti qui; per gli altri c'è il campo "simbolo manuale".
+const CATALOG = [
+  // --- ETF (UCITS europei in EUR dove possibile) ---
+  { cls: "ETF", name: "Vanguard FTSE All-World (VWCE)", symbol: "vwce.de", ccy: "EUR" },
+  { cls: "ETF", name: "Vanguard S&P 500 (VUAA)", symbol: "vuaa.de", ccy: "EUR" },
+  { cls: "ETF", name: "iShares Core MSCI World (EUNL / IWDA)", symbol: "eunl.de", ccy: "EUR" },
+  { cls: "ETF", name: "iShares Core S&P 500 (SXR8 / CSPX)", symbol: "sxr8.de", ccy: "EUR" },
+  { cls: "ETF", name: "iShares Nasdaq 100 (SXRV)", symbol: "sxrv.de", ccy: "EUR" },
+  { cls: "ETF", name: "iShares Core MSCI EM IMI (EIMI)", symbol: "eimi.de", ccy: "EUR" },
+  { cls: "ETF", name: "Vanguard FTSE Developed Europe (VEUR)", symbol: "veur.de", ccy: "EUR" },
+  { cls: "ETF", name: "Xtrackers MSCI World (XDWD)", symbol: "xdwd.de", ccy: "EUR" },
+  { cls: "ETF", name: "SPDR S&P 500 (SPY)", symbol: "spy.us", ccy: "USD" },
+  { cls: "ETF", name: "Invesco QQQ — Nasdaq 100 (QQQ)", symbol: "qqq.us", ccy: "USD" },
+  // --- Azioni USA ---
+  { cls: "Azioni", name: "Apple (AAPL)", symbol: "aapl.us", ccy: "USD" },
+  { cls: "Azioni", name: "Microsoft (MSFT)", symbol: "msft.us", ccy: "USD" },
+  { cls: "Azioni", name: "Alphabet / Google (GOOGL)", symbol: "googl.us", ccy: "USD" },
+  { cls: "Azioni", name: "Amazon (AMZN)", symbol: "amzn.us", ccy: "USD" },
+  { cls: "Azioni", name: "Nvidia (NVDA)", symbol: "nvda.us", ccy: "USD" },
+  { cls: "Azioni", name: "Meta (META)", symbol: "meta.us", ccy: "USD" },
+  { cls: "Azioni", name: "Tesla (TSLA)", symbol: "tsla.us", ccy: "USD" },
+  // --- Azioni Italia (Borsa Italiana) ---
+  { cls: "Azioni", name: "Enel (ENEL)", symbol: "enel.it", ccy: "EUR" },
+  { cls: "Azioni", name: "Eni (ENI)", symbol: "eni.it", ccy: "EUR" },
+  { cls: "Azioni", name: "Intesa Sanpaolo (ISP)", symbol: "isp.it", ccy: "EUR" },
+  { cls: "Azioni", name: "UniCredit (UCG)", symbol: "ucg.it", ccy: "EUR" },
+  { cls: "Azioni", name: "Stellantis (STLA)", symbol: "stla.it", ccy: "EUR" },
+  { cls: "Azioni", name: "Generali (G)", symbol: "g.it", ccy: "EUR" },
+];
 
 const euro = (n) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0);
@@ -73,29 +106,138 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   if (view === "pac") renderPac();
 });
 
-/* ============ HOLDINGS FORM ============ */
+/* ============ HOLDINGS FORM + RICERCA ============ */
 const form = document.getElementById("holdingForm");
 const classSel = document.getElementById("hClass");
+const nameInput = document.getElementById("hName");
+const symbolInput = document.getElementById("hSymbol");
+const suggestEl = document.getElementById("suggest");
+const badgeEl = document.getElementById("symbolBadge");
+const manualToggle = document.getElementById("manualToggle");
+const manualInput = document.getElementById("hSymbolManual");
+let searchTimer = null, searchSeq = 0, activeIdx = -1, currentResults = [];
 
-function updateSymbolField() {
-  const cfg = LIVE[classSel.value];
-  const field = document.querySelector(".symbol-field");
-  field.hidden = !cfg;
-  if (cfg) {
-    document.getElementById("symbolLabel").textContent = cfg.label;
-    document.getElementById("symbolHint").textContent = cfg.hint;
-    document.getElementById("hSymbol").placeholder = cfg.source === "stooq" ? "es. aapl.us" : "es. bitcoin";
-  }
+// Adatta il form alla classe scelta: la ricerca live è attiva solo per
+// Crypto/ETF/Azioni; per Obbligazioni/Liquidità si inserisce solo il nome.
+function updateSearchMode() {
+  const live = !!LIVE[classSel.value];
+  document.getElementById("nameLabel").textContent = live ? "Cerca nome" : "Nome";
+  nameInput.placeholder = live
+    ? (classSel.value === "Crypto" ? "es. Bitcoin, Ethereum, Solana" : "es. Apple, VWCE, Enel")
+    : "es. BTP 2030, Conto deposito";
+  manualToggle.hidden = !live;
+  clearSelection();
+  hideSuggest();
 }
-classSel.addEventListener("change", updateSymbolField);
+classSel.addEventListener("change", updateSearchMode);
+
+function setSymbol(symbol, fromManual) {
+  symbolInput.value = (symbol || "").trim().toLowerCase();
+  if (symbolInput.value) {
+    badgeEl.hidden = false;
+    badgeEl.textContent = `✓ prezzo live: ${symbolInput.value}`;
+  } else {
+    badgeEl.hidden = true;
+  }
+  if (!fromManual) { manualInput.value = symbolInput.value; }
+}
+function clearSelection() {
+  symbolInput.value = "";
+  badgeEl.hidden = true;
+}
+
+// L'utente digita: invalida la selezione precedente e cerca (con debounce).
+nameInput.addEventListener("input", () => {
+  clearSelection();
+  const q = nameInput.value.trim();
+  clearTimeout(searchTimer);
+  if (!LIVE[classSel.value] || q.length < 2) { hideSuggest(); return; }
+  searchTimer = setTimeout(() => runSearch(q), 280);
+});
+nameInput.addEventListener("keydown", onSearchKey);
+nameInput.addEventListener("blur", () => setTimeout(hideSuggest, 150));
+
+async function runSearch(q) {
+  const cls = classSel.value;
+  const seq = ++searchSeq;
+  let results = [];
+  if (cls === "Crypto") {
+    try {
+      const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      results = (data.coins || []).slice(0, 8).map((c) => ({
+        name: c.name, symbol: c.id, tag: (c.symbol || "").toUpperCase(),
+      }));
+    } catch { results = []; }
+  } else {
+    const ql = q.toLowerCase();
+    results = CATALOG.filter((x) => x.cls === cls &&
+      (x.name.toLowerCase().includes(ql) || x.symbol.includes(ql)))
+      .slice(0, 8).map((x) => ({ name: x.name, symbol: x.symbol, tag: x.ccy }));
+  }
+  if (seq !== searchSeq) return; // risultato obsoleto
+  showSuggest(results, q);
+}
+
+function showSuggest(results, q) {
+  currentResults = results;
+  activeIdx = -1;
+  suggestEl.innerHTML = "";
+  for (const r of results) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${esc(r.name)}</span><span class="sym">${esc(r.symbol)}${r.tag ? " · " + esc(r.tag) : ""}</span>`;
+    li.addEventListener("mousedown", (e) => { e.preventDefault(); pick(r); });
+    suggestEl.appendChild(li);
+  }
+  // Opzione sempre presente: usa il testo digitato senza prezzo live.
+  const add = document.createElement("li");
+  add.className = "add";
+  add.innerHTML = `<span>Usa “${esc(q)}” senza prezzo live</span><span class="sym">manuale</span>`;
+  add.addEventListener("mousedown", (e) => { e.preventDefault(); pick({ name: q, symbol: "" }); });
+  suggestEl.appendChild(add);
+  if (!results.length) {
+    const none = document.createElement("li");
+    none.className = "none";
+    none.textContent = "Nessun risultato — usa l'opzione qui sotto o il simbolo manuale.";
+    suggestEl.insertBefore(none, add);
+  }
+  suggestEl.hidden = false;
+}
+function hideSuggest() { suggestEl.hidden = true; activeIdx = -1; }
+
+function pick(r) {
+  nameInput.value = r.name;
+  setSymbol(r.symbol, false);
+  hideSuggest();
+}
+
+function onSearchKey(e) {
+  if (suggestEl.hidden) return;
+  const items = suggestEl.querySelectorAll("li:not(.none)");
+  if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); }
+  else if (e.key === "Enter") {
+    if (activeIdx >= 0 && items[activeIdx]) { e.preventDefault(); items[activeIdx].dispatchEvent(new MouseEvent("mousedown")); }
+    return;
+  } else if (e.key === "Escape") { hideSuggest(); return; }
+  else return;
+  items.forEach((li, i) => li.classList.toggle("active", i === activeIdx));
+}
+
+// Simbolo manuale (per strumenti non in catalogo)
+manualToggle.addEventListener("click", () => {
+  manualInput.hidden = !manualInput.hidden;
+  if (!manualInput.hidden) manualInput.focus();
+});
+manualInput.addEventListener("input", () => setSymbol(manualInput.value, true));
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const h = {
     id: uid(),
-    name: document.getElementById("hName").value.trim(),
+    name: nameInput.value.trim(),
     cls: classSel.value,
-    symbol: document.getElementById("hSymbol").value.trim().toLowerCase(),
+    symbol: symbolInput.value.trim().toLowerCase(),
     qty: +document.getElementById("hQty").value,
     avg: +document.getElementById("hAvg").value,
     now: document.getElementById("hNow").value === "" ? null : +document.getElementById("hNow").value,
@@ -104,7 +246,8 @@ form.addEventListener("submit", (e) => {
   holdings.push(h);
   save();
   form.reset();
-  updateSymbolField();
+  manualInput.hidden = true;
+  updateSearchMode();
   renderHoldings();
   if (h.symbol) refreshPrices();
 });
@@ -513,7 +656,7 @@ function fmtNum(n) { return new Intl.NumberFormat("it-IT", { maximumFractionDigi
 
 /* ============ INIT ============ */
 function init() {
-  updateSymbolField();
+  updateSearchMode();
   renderHoldings();
   renderDashboard();
   renderPac();

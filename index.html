@@ -92,10 +92,6 @@
         </div>
         <form id="holdingForm" class="holding-form">
           <div class="field">
-            <label>Nome / Ticker</label>
-            <input type="text" id="hName" placeholder="es. VWCE, Apple, BTC" required />
-          </div>
-          <div class="field">
             <label>Classe</label>
             <select id="hClass">
               <option value="ETF">ETF</option>
@@ -105,10 +101,16 @@
               <option value="Liquidità">Liquidità</option>
             </select>
           </div>
-          <div class="field symbol-field" hidden>
-            <label id="symbolLabel">Simbolo prezzo live</label>
-            <input type="text" id="hSymbol" placeholder="es. aapl.us" />
-            <span class="muted hint" id="symbolHint"></span>
+          <div class="field search-field">
+            <label id="nameLabel">Cerca nome</label>
+            <input type="text" id="hName" autocomplete="off" placeholder="es. Apple, Bitcoin, VWCE" required />
+            <input type="hidden" id="hSymbol" />
+            <ul class="suggest" id="suggest" hidden></ul>
+            <div class="symbol-row">
+              <span class="badge live" id="symbolBadge" hidden></span>
+              <button type="button" class="link manual-link" id="manualToggle" hidden>+ simbolo manuale</button>
+            </div>
+            <input type="text" class="manual-input" id="hSymbolManual" placeholder="simbolo esatto, es. aapl.us, vwce.de" hidden />
           </div>
           <div class="field">
             <label>Quantità</label>
@@ -120,7 +122,7 @@
           </div>
           <div class="field price-now">
             <label>Prezzo attuale (€)</label>
-            <input type="number" id="hNow" step="any" min="0" placeholder="= carico" />
+            <input type="number" id="hNow" step="any" min="0" placeholder="auto se c'è prezzo live" />
           </div>
           <button type="submit" class="btn primary">Aggiungi</button>
         </form>
