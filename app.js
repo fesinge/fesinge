@@ -8,7 +8,10 @@
 const STORE_KEY = "portafoglio.holdings.v1";
 const TARGET_KEY = "portafoglio.targets.v1";
 const HISTORY_KEY = "portafoglio.history.v1";
+const FX_KEY = "portafoglio.fx.v1";
+const TAX_KEY = "portafoglio.tax.v1";
 const CLASSES = ["ETF", "Azioni", "Crypto", "Obbligazioni", "Liquidità"];
+const CURRENCIES = ["EUR", "USD", "GBP", "CHF", "JPY"];
 const CLASS_COLORS = {
   ETF: "#5b8cff", Azioni: "#7c5bff", Crypto: "#ffb15b",
   Obbligazioni: "#2ecc71", "Liquidità": "#8b95a7",
@@ -55,6 +58,8 @@ const CATALOG = [
 
 const euro = (n) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n || 0);
+const money = (n, ccy) =>
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: ccy || "EUR", maximumFractionDigits: 2 }).format(n || 0);
 const pct = (n) => `${n >= 0 ? "+" : ""}${(n || 0).toFixed(2)}%`;
 const uid = () => Math.random().toString(36).slice(2, 9);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -63,6 +68,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 let holdings = load(STORE_KEY, []).map(migrate);
 let targets = load(TARGET_KEY, { ETF: 50, Azioni: 20, Crypto: 10, Obbligazioni: 15, "Liquidità": 5 });
 let history = load(HISTORY_KEY, []);
+// Tassi: 1 unità di valuta = quanti EUR. (es. fx.USD = 0.92)
+let fx = load(FX_KEY, { rates: { EUR: 1 }, ts: 0 });
+let tax = load(TAX_KEY, { rate: 26, bollo: 0.2, prevLoss: 0 });
 let charts = {};
 
 function load(key, fallback) {
@@ -74,18 +82,23 @@ function save() {
   localStorage.setItem(TARGET_KEY, JSON.stringify(targets));
 }
 function saveHistory() { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
+function saveFx() { localStorage.setItem(FX_KEY, JSON.stringify(fx)); }
+function saveTax() { localStorage.setItem(TAX_KEY, JSON.stringify(tax)); }
 
-// Migrazione vecchio campo coinId -> symbol
+// Migrazione: vecchio campo coinId -> symbol; valuta predefinita EUR
 function migrate(h) {
   if (h.symbol == null && h.coinId != null) h.symbol = h.coinId;
   if (h.symbol == null) h.symbol = "";
+  if (h.ccy == null) h.ccy = "EUR";
   return h;
 }
 
-/* ---------- Derived helpers ---------- */
-const priceOf = (h) => (h.now != null && h.now !== "" ? +h.now : +h.avg);
-const valueOf = (h) => priceOf(h) * +h.qty;
-const costOf = (h) => +h.avg * +h.qty;
+/* ---------- Derived helpers (tutto convertito in EUR) ---------- */
+// 1 unità della valuta dello strumento -> EUR
+const fxToEur = (ccy) => (!ccy || ccy === "EUR" ? 1 : (fx.rates[ccy] || 1));
+const priceOf = (h) => (h.now != null && h.now !== "" ? +h.now : +h.avg); // valuta nativa
+const valueOf = (h) => priceOf(h) * +h.qty * fxToEur(h.ccy);              // EUR
+const costOf = (h) => +h.avg * +h.qty * fxToEur(h.ccy);                   // EUR
 const totalValue = () => holdings.reduce((s, h) => s + valueOf(h), 0);
 const totalCost = () => holdings.reduce((s, h) => s + costOf(h), 0);
 
@@ -103,6 +116,7 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const view = btn.dataset.view;
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
   if (view === "dashboard") renderDashboard();
+  if (view === "analysis") renderAnalysis();
   if (view === "pac") renderPac();
 });
 
@@ -166,14 +180,14 @@ async function runSearch(q) {
       const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`);
       const data = await res.json();
       results = (data.coins || []).slice(0, 8).map((c) => ({
-        name: c.name, symbol: c.id, tag: (c.symbol || "").toUpperCase(),
+        name: c.name, symbol: c.id, ccy: "EUR", tag: (c.symbol || "").toUpperCase(),
       }));
     } catch { results = []; }
   } else {
     const ql = q.toLowerCase();
     results = CATALOG.filter((x) => x.cls === cls &&
       (x.name.toLowerCase().includes(ql) || x.symbol.includes(ql)))
-      .slice(0, 8).map((x) => ({ name: x.name, symbol: x.symbol, tag: x.ccy }));
+      .slice(0, 8).map((x) => ({ name: x.name, symbol: x.symbol, ccy: x.ccy, tag: x.ccy }));
   }
   if (seq !== searchSeq) return; // risultato obsoleto
   showSuggest(results, q);
@@ -208,6 +222,7 @@ function hideSuggest() { suggestEl.hidden = true; activeIdx = -1; }
 function pick(r) {
   nameInput.value = r.name;
   setSymbol(r.symbol, false);
+  if (r.ccy) document.getElementById("hCcy").value = r.ccy;
   hideSuggest();
 }
 
@@ -238,6 +253,7 @@ form.addEventListener("submit", (e) => {
     name: nameInput.value.trim(),
     cls: classSel.value,
     symbol: symbolInput.value.trim().toLowerCase(),
+    ccy: document.getElementById("hCcy").value,
     qty: +document.getElementById("hQty").value,
     avg: +document.getElementById("hAvg").value,
     now: document.getElementById("hNow").value === "" ? null : +document.getElementById("hNow").value,
@@ -265,12 +281,13 @@ function renderHoldings() {
     const pnlPct = costOf(h) > 0 ? (pnl / costOf(h)) * 100 : 0;
     const cls = pnl >= 0 ? "pos" : "neg";
     const tr = document.createElement("tr");
+    const ccyTag = h.ccy && h.ccy !== "EUR" ? ` <span class="muted">${h.ccy}</span>` : "";
     tr.innerHTML = `
       <td><strong>${esc(h.name)}</strong>${h.symbol ? `<br><span class="muted">${esc(h.symbol)}</span>` : ""}</td>
       <td><span class="badge">${h.cls}</span></td>
       <td class="num">${fmtNum(h.qty)}</td>
-      <td class="num">${euro(h.avg)}</td>
-      <td class="num">${euro(priceOf(h))}</td>
+      <td class="num">${money(h.avg, h.ccy)}${ccyTag}</td>
+      <td class="num">${money(priceOf(h), h.ccy)}${ccyTag}</td>
       <td class="num"><strong>${euro(val)}</strong></td>
       <td class="num ${cls}">${euro(pnl)}<br><span class="muted">${pct(pnlPct)}</span></td>
       <td class="num"><button class="btn danger" data-del="${h.id}" title="Rimuovi">✕</button></td>`;
@@ -355,6 +372,133 @@ document.getElementById("rebalance").addEventListener("input", (e) => {
   save();
   renderRebalance();
 });
+
+/* ============ ANALISI: rendimento, fisco, consigli ============ */
+function renderAnalysis() {
+  renderPerformance();
+  renderTax();
+  renderTips();
+}
+
+// CAGR, max drawdown e volatilità dallo storico dei valori
+function renderPerformance() {
+  const cagrEl = document.getElementById("anCagr");
+  const subEl = document.getElementById("anCagrSub");
+  const ddEl = document.getElementById("anDrawdown");
+  const volEl = document.getElementById("anVol");
+
+  if (history.length < 2) {
+    cagrEl.textContent = ddEl.textContent = volEl.textContent = "—";
+    subEl.textContent = "serve qualche giorno di storico";
+    return;
+  }
+  const first = history[0], last = history[history.length - 1];
+  const days = Math.max(1, (new Date(last.date) - new Date(first.date)) / 86400000);
+  const years = days / 365;
+  // CAGR sul valore (approssimazione: non depura i versamenti — utile come prima stima)
+  if (first.value > 0 && years >= 0.05) {
+    const cagr = (Math.pow(last.value / first.value, 1 / years) - 1) * 100;
+    cagrEl.textContent = pct(cagr);
+    cagrEl.className = `kpi-value ${cagr >= 0 ? "pos" : "neg"}`;
+    subEl.textContent = `su ${Math.round(days)} giorni di storico`;
+  } else {
+    cagrEl.textContent = "—";
+    subEl.textContent = "storico ancora troppo breve";
+  }
+  // Max drawdown
+  let peak = -Infinity, maxDd = 0;
+  for (const p of history) { peak = Math.max(peak, p.value); if (peak > 0) maxDd = Math.min(maxDd, (p.value - peak) / peak); }
+  ddEl.textContent = pct(maxDd * 100);
+  ddEl.className = "kpi-value neg";
+  // Volatilità: deviazione standard dei rendimenti giornalieri
+  const rets = [];
+  for (let i = 1; i < history.length; i++) {
+    const a = history[i - 1].value, b = history[i].value;
+    if (a > 0) rets.push(b / a - 1);
+  }
+  if (rets.length) {
+    const m = rets.reduce((s, r) => s + r, 0) / rets.length;
+    const sd = Math.sqrt(rets.reduce((s, r) => s + (r - m) ** 2, 0) / rets.length);
+    volEl.textContent = `${(sd * 100).toFixed(2)}%`;
+  } else volEl.textContent = "—";
+}
+
+// Stima fiscale italiana sulle plusvalenze latenti
+function renderTax() {
+  tax.rate = +document.getElementById("taxRate").value || 0;
+  tax.bollo = +document.getElementById("taxBollo").value || 0;
+  tax.prevLoss = +document.getElementById("taxPrevLoss").value || 0;
+  saveTax();
+
+  const val = totalValue();
+  // Plusvalenza latente: somma dei soli guadagni (le perdite non generano imposta)
+  let gain = 0;
+  for (const h of holdings) {
+    const g = valueOf(h) - costOf(h);
+    if (g > 0) gain += g;
+  }
+  const taxable = Math.max(0, gain - tax.prevLoss);
+  const capGain = taxable * (tax.rate / 100);
+  const bollo = val * (tax.bollo / 100);
+  const out = document.getElementById("taxOut");
+  out.innerHTML = `
+    <div class="tax-row"><span>Plusvalenza latente</span><span class="v">${euro(gain)}</span></div>
+    <div class="tax-row"><span>− minusvalenze compensate</span><span class="v">${euro(Math.min(gain, tax.prevLoss))}</span></div>
+    <div class="tax-row"><span>Imponibile</span><span class="v">${euro(taxable)}</span></div>
+    <div class="tax-row"><span>Imposta capital gain (${tax.rate}%)</span><span class="v">${euro(capGain)}</span></div>
+    <div class="tax-row"><span>Bollo titoli annuo (${tax.bollo}%)</span><span class="v">${euro(bollo)}</span></div>
+    <div class="tax-row"><span>Netto se vendessi oggi</span><span class="v">${euro(val - capGain)}</span></div>`;
+}
+["taxRate", "taxBollo", "taxPrevLoss"].forEach((id) =>
+  document.getElementById(id).addEventListener("input", () => { renderTax(); renderTips(); }));
+
+// Consigli contestuali in base alla composizione del portafoglio
+function renderTips() {
+  const wrap = document.getElementById("tips");
+  const val = totalValue();
+  const tips = [];
+  if (!holdings.length || val <= 0) {
+    wrap.innerHTML = `<div class="tip"><span class="ico">💡</span><span>Aggiungi qualche posizione per ricevere consigli su diversificazione, liquidità e ribilanciamento.</span></div>`;
+    return;
+  }
+  const byClass = valueByClass();
+
+  // 1. Concentrazione su singola posizione
+  const top = [...holdings].sort((a, b) => valueOf(b) - valueOf(a))[0];
+  const topPct = (valueOf(top) / val) * 100;
+  if (topPct > 35) tips.push(["bad", "⚠️", `<strong>Concentrazione alta:</strong> “${esc(top.name)}” è il ${topPct.toFixed(0)}% del portafoglio. Un singolo titolo oltre il 35% aumenta molto il rischio specifico.`]);
+  else if (topPct > 20) tips.push(["warn", "📊", `“${esc(top.name)}” pesa il ${topPct.toFixed(0)}%. Tienilo d'occhio: oltre il 20-25% su un singolo strumento la diversificazione cala.`]);
+
+  // 2. Esposizione crypto
+  const cryptoPct = ((byClass.Crypto || 0) / val) * 100;
+  if (cryptoPct > 20) tips.push(["warn", "🪙", `Le crypto sono il ${cryptoPct.toFixed(0)}% del portafoglio: asset molto volatile. Molti consulenti suggeriscono di restare entro il 5-10%.`]);
+
+  // 3. Liquidità / fondo emergenza
+  const cashPct = ((byClass["Liquidità"] || 0) / val) * 100;
+  if (cashPct < 5) tips.push(["warn", "🛟", `Liquidità sotto il 5%. Tieni un fondo d'emergenza (3-6 mesi di spese) <em>fuori</em> dagli investimenti per non dover vendere in perdita.`]);
+  else if (cashPct > 40) tips.push(["warn", "💤", `Hai il ${cashPct.toFixed(0)}% in liquidità: molto capitale fermo che l'inflazione erode. Valuta un PAC per investirlo gradualmente.`]);
+
+  // 4. Scostamento dai target di ribilanciamento
+  let drift = 0, driftCls = "";
+  for (const c of CLASSES) {
+    const cur = ((byClass[c] || 0) / val) * 100;
+    const d = Math.abs(cur - (targets[c] ?? 0));
+    if (d > drift) { drift = d; driftCls = c; }
+  }
+  if (drift > 7) tips.push(["warn", "🔁", `<strong>${driftCls}</strong> si è scostato di ${drift.toFixed(0)} punti dal target. Valuta un ribilanciamento (vedi la Dashboard).`]);
+
+  // 5. Diversificazione per numero di classi
+  const nClasses = Object.values(byClass).filter((v) => v > 0).length;
+  if (nClasses <= 1) tips.push(["warn", "🧩", `Sei esposta a una sola classe di attivo. Diversificare tra ETF, azioni, obbligazioni e liquidità riduce il rischio complessivo.`]);
+
+  if (!tips.length) tips.push(["ok", "✅", `Portafoglio ben bilanciato: nessun segnale critico su concentrazione, liquidità e diversificazione. Continua così e mantieni la disciplina del PAC.`]);
+
+  // Tip educativo fisso sui costi
+  tips.push(["", "💸", `<strong>Occhio al TER:</strong> su un ETF, lo 0,3% di costo annuo in più, su 20.000 € investiti per 20 anni, può valere diverse migliaia di euro. A parità di indice, scegli il più economico.`]);
+
+  wrap.innerHTML = tips.map(([cls, ico, txt]) =>
+    `<div class="tip ${cls}"><span class="ico">${ico}</span><span>${txt}</span></div>`).join("");
+}
 
 /* ============ HISTORY (snapshot del valore) ============ */
 function recordSnapshot() {
@@ -458,13 +602,21 @@ function emptyChart(id) {
   ctx.fillText("Nessun dato", c.width / 2, c.height / 2);
 }
 
-/* ============ LIVE PRICES ============ */
+/* ============ LIVE PRICES + FX ============ */
 async function refreshPrices() {
   const statusEl = document.getElementById("priceStatus");
   const cryptoIds = [...new Set(holdings.filter((h) => LIVE[h.cls]?.source === "coingecko" && h.symbol).map((h) => h.symbol))];
   const stooqSyms = [...new Set(holdings.filter((h) => LIVE[h.cls]?.source === "stooq" && h.symbol).map((h) => h.symbol))];
 
-  if (!cryptoIds.length && !stooqSyms.length) { statusEl.textContent = "·"; statusEl.className = "status"; return; }
+  // Tassi di cambio: serve aggiornarli se ci sono strumenti in valuta diversa dall'EUR
+  await refreshFx();
+
+  if (!cryptoIds.length && !stooqSyms.length) {
+    statusEl.textContent = "·"; statusEl.className = "status";
+    renderHoldings(); recordSnapshot();
+    if (document.getElementById("view-dashboard").classList.contains("active")) renderDashboard();
+    return;
+  }
   statusEl.textContent = "aggiorno…"; statusEl.className = "status";
 
   let updated = 0, failed = 0;
@@ -488,6 +640,25 @@ async function refreshPrices() {
   renderHoldings();
   recordSnapshot();
   if (document.getElementById("view-dashboard").classList.contains("active")) renderDashboard();
+}
+
+// Tassi BCE via Frankfurter (gratis, senza chiave, CORS-friendly). Cache 6h.
+async function refreshFx() {
+  const need = [...new Set(holdings.map((h) => h.ccy).filter((c) => c && c !== "EUR"))];
+  if (!need.length) return;
+  const fresh = Date.now() - (fx.ts || 0) < 6 * 3600 * 1000;
+  const covered = need.every((c) => fx.rates[c] != null);
+  if (fresh && covered) return;
+  try {
+    const url = `https://api.frankfurter.app/latest?from=EUR&to=${need.join(",")}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("fx " + res.status);
+    const data = await res.json();
+    // data.rates: EUR -> CCY. Ci serve CCY -> EUR = 1 / rate.
+    for (const c of need) if (data.rates?.[c]) fx.rates[c] = 1 / data.rates[c];
+    fx.ts = Date.now();
+    saveFx();
+  } catch { /* mantiene i tassi in cache, o 1:1 se assenti */ }
 }
 
 async function fetchCrypto(ids) {
@@ -524,7 +695,7 @@ document.getElementById("refreshBtn").addEventListener("click", refreshPrices);
 
 /* ============ IMPORT / EXPORT / SEED ============ */
 document.getElementById("exportBtn").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify({ holdings, targets, history }, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify({ holdings, targets, history, fx, tax }, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `portafoglio-${today()}.json`;
@@ -541,6 +712,8 @@ document.getElementById("importFile").addEventListener("change", (e) => {
       if (Array.isArray(obj.holdings)) holdings = obj.holdings.map(migrate);
       if (obj.targets) targets = obj.targets;
       if (Array.isArray(obj.history)) { history = obj.history; saveHistory(); }
+      if (obj.fx) { fx = obj.fx; saveFx(); }
+      if (obj.tax) { tax = obj.tax; saveTax(); syncTaxInputs(); }
       save(); renderHoldings(); refreshPrices();
     } catch { alert("File non valido."); }
   };
@@ -549,12 +722,12 @@ document.getElementById("importFile").addEventListener("change", (e) => {
 
 function seed() {
   holdings = [
-    { id: uid(), name: "VWCE", cls: "ETF", symbol: "vwce.de", qty: 25, avg: 105, now: 118 },
-    { id: uid(), name: "SWDA", cls: "ETF", symbol: "", qty: 30, avg: 80, now: 92 },
-    { id: uid(), name: "Apple", cls: "Azioni", symbol: "aapl.us", qty: 8, avg: 160, now: 195 },
-    { id: uid(), name: "Bitcoin", cls: "Crypto", symbol: "bitcoin", qty: 0.05, avg: 38000, now: 38000 },
-    { id: uid(), name: "Ethereum", cls: "Crypto", symbol: "ethereum", qty: 0.8, avg: 2200, now: 2200 },
-    { id: uid(), name: "Conto deposito", cls: "Liquidità", symbol: "", qty: 1, avg: 3000, now: 3000 },
+    { id: uid(), name: "VWCE", cls: "ETF", symbol: "vwce.de", ccy: "EUR", qty: 25, avg: 105, now: 118 },
+    { id: uid(), name: "SWDA", cls: "ETF", symbol: "", ccy: "EUR", qty: 30, avg: 80, now: 92 },
+    { id: uid(), name: "Apple", cls: "Azioni", symbol: "aapl.us", ccy: "USD", qty: 8, avg: 160, now: 195 },
+    { id: uid(), name: "Bitcoin", cls: "Crypto", symbol: "bitcoin", ccy: "EUR", qty: 0.05, avg: 38000, now: 38000 },
+    { id: uid(), name: "Ethereum", cls: "Crypto", symbol: "ethereum", ccy: "EUR", qty: 0.8, avg: 2200, now: 2200 },
+    { id: uid(), name: "Conto deposito", cls: "Liquidità", symbol: "", ccy: "EUR", qty: 1, avg: 3000, now: 3000 },
   ];
   save(); renderHoldings(); refreshPrices();
 }
@@ -653,10 +826,16 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
 /* ============ UTILS ============ */
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function fmtNum(n) { return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 8 }).format(n); }
+function syncTaxInputs() {
+  document.getElementById("taxRate").value = tax.rate;
+  document.getElementById("taxBollo").value = tax.bollo;
+  document.getElementById("taxPrevLoss").value = tax.prevLoss;
+}
 
 /* ============ INIT ============ */
 function init() {
   updateSearchMode();
+  syncTaxInputs();
   renderHoldings();
   renderDashboard();
   renderPac();

@@ -27,6 +27,15 @@ Installabile come **app** (PWA) e utilizzabile **offline**.
     quotazioni in EUR dove possibile.
   - Una volta aggiunta la posizione, **i prezzi si aggiornano da soli** ad ogni
     apertura dell'app: non vanno inseriti né aggiornati a mano.
+- **Conversione valute automatica** — le posizioni in USD, GBP, CHF, JPY sono
+  convertite in EUR con i tassi BCE live ([Frankfurter](https://www.frankfurter.app/)),
+  così totali e rendimenti sono corretti anche con strumenti su borse estere.
+- **Analisi** — scheda dedicata con:
+  - **Rendimento**: CAGR (annualizzato), max drawdown e volatilità dallo storico.
+  - **Fisco 🇮🇹 (stima)**: imposta sul capital gain (26%), bollo titoli (0,2%) e
+    compensazione delle minusvalenze pregresse. Stima educativa, non fiscale.
+  - **Consigli & avvisi**: concentrazione su singolo titolo, esposizione crypto,
+    fondo d'emergenza/liquidità, scostamento dai target, costi (TER).
 - **Ribilanciamento** — imposti le percentuali obiettivo per ogni classe e
   l'app ti dice quanto comprare/vendere per raggiungerle.
 - **Simulatore PAC** — interesse composto con versamenti mensili, rendimento
