@@ -25,6 +25,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab active" data-view="dashboard">Dashboard</button>
       <button class="tab" data-view="holdings">Posizioni</button>
+      <button class="tab" data-view="analysis">Analisi</button>
       <button class="tab" data-view="pac">Simulatore PAC</button>
     </nav>
     <div class="topbar-actions">
@@ -113,15 +114,25 @@
             <input type="text" class="manual-input" id="hSymbolManual" placeholder="simbolo esatto, es. aapl.us, vwce.de" hidden />
           </div>
           <div class="field">
+            <label>Valuta</label>
+            <select id="hCcy">
+              <option value="EUR">EUR €</option>
+              <option value="USD">USD $</option>
+              <option value="GBP">GBP £</option>
+              <option value="CHF">CHF</option>
+              <option value="JPY">JPY ¥</option>
+            </select>
+          </div>
+          <div class="field">
             <label>Quantità</label>
             <input type="number" id="hQty" step="any" min="0" placeholder="0" required />
           </div>
           <div class="field">
-            <label>Prezzo di carico (€)</label>
+            <label>Prezzo di carico</label>
             <input type="number" id="hAvg" step="any" min="0" placeholder="0" required />
           </div>
           <div class="field price-now">
-            <label>Prezzo attuale (€)</label>
+            <label>Prezzo attuale</label>
             <input type="number" id="hNow" step="any" min="0" placeholder="auto se c'è prezzo live" />
           </div>
           <button type="submit" class="btn primary">Aggiungi</button>
@@ -151,6 +162,53 @@
           </table>
         </div>
         <p class="empty" id="emptyHint">Nessuna posizione. Aggiungine una o carica l'<button class="link" id="seedLink">esempio</button>.</p>
+      </div>
+    </section>
+
+    <!-- ============ ANALYSIS ============ -->
+    <section class="view" id="view-analysis">
+      <div class="cards">
+        <div class="card kpi">
+          <span class="kpi-label">Rendimento annualizzato (CAGR)</span>
+          <span class="kpi-value" id="anCagr">—</span>
+          <span class="kpi-sub" id="anCagrSub">serve qualche giorno di storico</span>
+        </div>
+        <div class="card kpi">
+          <span class="kpi-label">Max drawdown</span>
+          <span class="kpi-value" id="anDrawdown">—</span>
+          <span class="kpi-sub">massima discesa dai massimi</span>
+        </div>
+        <div class="card kpi">
+          <span class="kpi-label">Volatilità (giornaliera)</span>
+          <span class="kpi-value" id="anVol">—</span>
+          <span class="kpi-sub">oscillazione media del valore</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Fisco (stima) 🇮🇹</h2>
+            <p class="muted">Stima educativa sulle plusvalenze <em>latenti</em> (se vendessi oggi tutto in guadagno). Non è consulenza fiscale.</p>
+          </div>
+          <div class="tax-grid">
+            <label>Aliquota capital gain (%)
+              <input type="number" id="taxRate" step="0.5" min="0" value="26" />
+            </label>
+            <label>Bollo titoli annuo (%)
+              <input type="number" id="taxBollo" step="0.05" min="0" value="0.2" />
+            </label>
+            <label>Minusvalenze pregresse (€)
+              <input type="number" id="taxPrevLoss" step="any" min="0" value="0" />
+            </label>
+          </div>
+          <div class="tax-out" id="taxOut"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Consigli &amp; avvisi</h2></div>
+          <div class="tips" id="tips"></div>
+        </div>
       </div>
     </section>
 
@@ -208,7 +266,7 @@
   </main>
 
   <footer class="footer">
-    <p>I dati restano nel tuo browser (localStorage). Prezzi crypto via CoinGecko, azioni/ETF via Stooq. <strong>Non è consulenza finanziaria.</strong></p>
+    <p>I dati restano nel tuo browser (localStorage). Prezzi crypto via CoinGecko, azioni/ETF via Stooq, cambi via Frankfurter (BCE). <strong>Non è consulenza finanziaria né fiscale.</strong></p>
   </footer>
 </body>
 </html>

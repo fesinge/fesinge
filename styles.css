@@ -166,6 +166,26 @@ td.num { font-variant-numeric: tabular-nums; }
 tbody tr:hover { background: rgba(255,255,255,0.02); }
 .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 20px; }
 
+/* ---------- Analysis ---------- */
+.tax-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.tax-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+.tax-out { display: flex; flex-direction: column; gap: 8px; }
+.tax-row { display: flex; justify-content: space-between; font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.tax-row:last-child { border-bottom: 0; font-weight: 700; }
+.tax-row .v { font-variant-numeric: tabular-nums; }
+
+.tips { display: flex; flex-direction: column; gap: 10px; }
+.tip { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); font-size: 13px; line-height: 1.45; }
+.tip .ico { font-size: 16px; line-height: 1.2; }
+.tip.warn { border-color: rgba(255,177,91,0.4); }
+.tip.bad { border-color: rgba(255,93,108,0.4); }
+.tip.ok { border-color: rgba(46,204,113,0.35); }
+.tip strong { color: var(--text); }
+
+@media (max-width: 820px) {
+  .tax-grid { grid-template-columns: 1fr; }
+}
+
 .footer { max-width: 1100px; margin: 0 auto; padding: 16px 24px 40px; color: var(--muted); font-size: 12px; }
 
 /* ---------- Responsive ---------- */
