@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Portafoglio — tracker investimenti ETF, azioni e crypto con prezzi live, storico, simulatore PAC e ribilanciamento. Privacy-first, dati solo nel tuo browser." />
+  <meta name="theme-color" content="#0c0f14" />
+  <title>Portafoglio · ETF · Azioni · Crypto</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">📈</span>
+      <div>
+        <h1>Portafoglio</h1>
+        <p class="tagline">ETF · Azioni · Crypto — privacy-first</p>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="dashboard">Dashboard</button>
+      <button class="tab" data-view="holdings">Posizioni</button>
+      <button class="tab" data-view="pac">Simulatore PAC</button>
+    </nav>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="installBtn" title="Installa l'app" hidden>⬇ Installa</button>
+      <span class="status" id="priceStatus" title="Stato prezzi live">·</span>
+      <button class="btn ghost" id="refreshBtn" title="Aggiorna prezzi live">↻</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ DASHBOARD ============ -->
+    <section class="view active" id="view-dashboard">
+      <div class="cards">
+        <div class="card kpi">
+          <span class="kpi-label">Valore totale</span>
+          <span class="kpi-value" id="kpiTotal">—</span>
+          <span class="kpi-sub" id="kpiInvested">investito —</span>
+        </div>
+        <div class="card kpi">
+          <span class="kpi-label">Plus / Minusvalenza</span>
+          <span class="kpi-value" id="kpiPnl">—</span>
+          <span class="kpi-sub" id="kpiPnlPct">—</span>
+        </div>
+        <div class="card kpi">
+          <span class="kpi-label">Posizioni</span>
+          <span class="kpi-value" id="kpiCount">0</span>
+          <span class="kpi-sub" id="kpiClasses">—</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head row">
+          <h2>Andamento del valore</h2>
+          <button class="btn ghost" id="clearHistoryBtn" title="Cancella lo storico">Azzera storico</button>
+        </div>
+        <div class="chart-wrap tall"><canvas id="historyChart"></canvas></div>
+        <p class="muted" id="historyHint">Lo storico si costruisce nel tempo: ogni giorno che apri l'app viene salvata un'istantanea del valore totale.</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h2>Allocazione per classe</h2>
+          <div class="chart-wrap"><canvas id="allocChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Top posizioni</h2>
+          <div class="chart-wrap"><canvas id="topChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Ribilanciamento</h2>
+          <p class="muted">Imposta le percentuali obiettivo per ogni classe. Ti dico quanto comprare/vendere per raggiungerle.</p>
+        </div>
+        <div class="rebalance" id="rebalance"></div>
+      </div>
+    </section>
+
+    <!-- ============ HOLDINGS ============ -->
+    <section class="view" id="view-holdings">
+      <div class="card">
+        <div class="card-head">
+          <h2>Aggiungi posizione</h2>
+        </div>
+        <form id="holdingForm" class="holding-form">
+          <div class="field">
+            <label>Classe</label>
+            <select id="hClass">
+              <option value="ETF">ETF</option>
+              <option value="Azioni">Azioni</option>
+              <option value="Crypto">Crypto</option>
+              <option value="Obbligazioni">Obbligazioni</option>
+              <option value="Liquidità">Liquidità</option>
+            </select>
+          </div>
+          <div class="field search-field">
+            <label id="nameLabel">Cerca nome</label>
+            <input type="text" id="hName" autocomplete="off" placeholder="es. Apple, Bitcoin, VWCE" required />
+            <input type="hidden" id="hSymbol" />
+            <ul class="suggest" id="suggest" hidden></ul>
+            <div class="symbol-row">
+              <span class="badge live" id="symbolBadge" hidden></span>
+              <button type="button" class="link manual-link" id="manualToggle" hidden>+ simbolo manuale</button>
+            </div>
+            <input type="text" class="manual-input" id="hSymbolManual" placeholder="simbolo esatto, es. aapl.us, vwce.de" hidden />
+          </div>
+          <div class="field">
+            <label>Quantità</label>
+            <input type="number" id="hQty" step="any" min="0" placeholder="0" required />
+          </div>
+          <div class="field">
+            <label>Prezzo di carico (€)</label>
+            <input type="number" id="hAvg" step="any" min="0" placeholder="0" required />
+          </div>
+          <div class="field price-now">
+            <label>Prezzo attuale (€)</label>
+            <input type="number" id="hNow" step="any" min="0" placeholder="auto se c'è prezzo live" />
+          </div>
+          <button type="submit" class="btn primary">Aggiungi</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head row">
+          <h2>Le tue posizioni</h2>
+          <div class="head-actions">
+            <button class="btn ghost" id="seedBtn" title="Carica un portafoglio di esempio">Esempio</button>
+            <button class="btn ghost" id="exportBtn">Esporta</button>
+            <button class="btn ghost" id="importBtn">Importa</button>
+            <input type="file" id="importFile" accept="application/json" hidden />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="holdingsTable">
+            <thead>
+              <tr>
+                <th>Nome</th><th>Classe</th><th class="num">Qtà</th>
+                <th class="num">Carico</th><th class="num">Attuale</th>
+                <th class="num">Valore</th><th class="num">P&L</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="holdingsBody"></tbody>
+          </table>
+        </div>
+        <p class="empty" id="emptyHint">Nessuna posizione. Aggiungine una o carica l'<button class="link" id="seedLink">esempio</button>.</p>
+      </div>
+    </section>
+
+    <!-- ============ PAC SIMULATOR ============ -->
+    <section class="view" id="view-pac">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Piano di Accumulo (PAC)</h2>
+          <p class="muted">Interesse composto con versamenti periodici. Stima a scopo educativo, non è consulenza finanziaria.</p>
+          <div class="field">
+            <label>Capitale iniziale (€)</label>
+            <input type="number" id="pInit" value="1000" min="0" step="any" />
+          </div>
+          <div class="field">
+            <label>Versamento mensile (€)</label>
+            <input type="number" id="pMonthly" value="200" min="0" step="any" />
+          </div>
+          <div class="field">
+            <label>Anni: <strong id="pYearsLabel">20</strong></label>
+            <input type="range" id="pYears" min="1" max="40" value="20" />
+          </div>
+          <div class="field">
+            <label>Rendimento annuo atteso: <strong id="pRateLabel">7%</strong></label>
+            <input type="range" id="pRate" min="0" max="15" step="0.5" value="7" />
+          </div>
+          <div class="field">
+            <label>Inflazione annua: <strong id="pInflLabel">2%</strong></label>
+            <input type="range" id="pInfl" min="0" max="8" step="0.5" value="2" />
+          </div>
+        </div>
+        <div class="card">
+          <h2>Proiezione</h2>
+          <div class="cards compact">
+            <div class="kpi small">
+              <span class="kpi-label">Valore finale</span>
+              <span class="kpi-value" id="pacFinal">—</span>
+            </div>
+            <div class="kpi small">
+              <span class="kpi-label">Totale versato</span>
+              <span class="kpi-value" id="pacInvested">—</span>
+            </div>
+            <div class="kpi small">
+              <span class="kpi-label">Interessi maturati</span>
+              <span class="kpi-value" id="pacGain">—</span>
+            </div>
+            <div class="kpi small">
+              <span class="kpi-label">Valore reale <span class="muted">(infl.)</span></span>
+              <span class="kpi-value" id="pacReal">—</span>
+            </div>
+          </div>
+          <div class="chart-wrap tall"><canvas id="pacChart"></canvas></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>I dati restano nel tuo browser (localStorage). Prezzi crypto via CoinGecko, azioni/ETF via Stooq. <strong>Non è consulenza finanziaria.</strong></p>
+  </footer>
+</body>
+</html>

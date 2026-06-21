@@ -1,0 +1,20 @@
+{
+  "name": "Portafoglio — ETF · Azioni · Crypto",
+  "short_name": "Portafoglio",
+  "description": "Tracker investimenti multi-asset con prezzi live, storico, simulatore PAC e ribilanciamento. Privacy-first.",
+  "lang": "it",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c0f14",
+  "theme_color": "#0c0f14",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
