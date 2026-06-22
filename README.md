@@ -40,6 +40,9 @@ Installabile come **app** (PWA) e utilizzabile **offline**.
   l'app ti dice quanto comprare/vendere per raggiungerle.
 - **Simulatore PAC** — interesse composto con versamenti mensili, rendimento
   atteso e correzione per l'inflazione (valore reale).
+- **Obiettivi & FIRE** — stima quando raggiungi una cifra obiettivo e calcola il
+  tuo "numero FIRE" (capitale per l'indipendenza finanziaria) dato il tasso di
+  prelievo sicuro e la spesa annua desiderata.
 - **Import / Export** — backup e ripristino di posizioni, obiettivi e storico
   in formato JSON.
 - **PWA** — installabile su desktop e mobile, con cache offline dell'app.

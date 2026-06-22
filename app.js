@@ -735,7 +735,7 @@ document.getElementById("seedBtn").addEventListener("click", seed);
 document.getElementById("seedLink").addEventListener("click", seed);
 
 /* ============ PAC SIMULATOR ============ */
-const pacInputs = ["pInit", "pMonthly", "pYears", "pRate", "pInfl"];
+const pacInputs = ["pInit", "pMonthly", "pYears", "pRate", "pInfl", "gTarget", "gSpend", "gSwr"];
 pacInputs.forEach((id) => document.getElementById(id).addEventListener("input", renderPac));
 
 function renderPac() {
@@ -773,6 +773,44 @@ function renderPac() {
   document.getElementById("pacReal").textContent = euro(realVal);
 
   drawPacChart(labels, valueSeries, investedSeries);
+  renderGoal(init, monthly, rate);
+}
+
+// Pianificatore obiettivi / FIRE
+function renderGoal(init, monthly, rate) {
+  const target = +document.getElementById("gTarget").value || 0;
+  const spend = +document.getElementById("gSpend").value || 0;
+  const swr = +document.getElementById("gSwr").value || 4;
+  document.getElementById("gSwrLabel").textContent = `${swr}%`;
+
+  // Mesi necessari a raggiungere l'obiettivo (interesse composto mensile)
+  const r = rate / 100 / 12;
+  let v = init, months = 0;
+  const cap = 1200; // max 100 anni: evita loop infiniti se irraggiungibile
+  while (v < target && months < cap) { v = v * (1 + r) + monthly; months++; }
+
+  const reach = months >= cap
+    ? `Con questi parametri l'obiettivo non è raggiungibile entro 100 anni: aumenta versamento o rendimento.`
+    : `Raggiungi <strong>${euro(target)}</strong> tra <strong>${fmtDuration(months)}</strong> (a ${rate}% annuo, ${euro(monthly)}/mese).`;
+
+  // Numero FIRE: capitale che al tasso di prelievo "sicuro" copre la spesa annua
+  const fireNumber = swr > 0 ? spend / (swr / 100) : 0;
+  let vf = init, mf = 0;
+  while (vf < fireNumber && mf < cap) { vf = vf * (1 + r) + monthly; mf++; }
+  const fireWhen = mf >= cap ? "oltre 100 anni" : fmtDuration(mf);
+
+  const out = document.getElementById("goalOut");
+  out.innerHTML = `
+    <div class="tip"><span class="ico">🎯</span><span>${reach}</span></div>
+    <div class="tip"><span class="ico">🔥</span><span>Il tuo <strong>numero FIRE</strong> per ${euro(spend)}/anno di spesa (prelievo ${swr}%) è <strong>${euro(fireNumber)}</strong>. Lo raggiungeresti tra <strong>${fireWhen}</strong>.</span></div>
+    <div class="tip"><span class="ico">📌</span><span>Regola pratica: servono circa <strong>${(100 / swr).toFixed(0)}× le spese annue</strong> per essere finanziariamente indipendente. Più basso è il tasso di prelievo, più alto (e prudente) è il capitale richiesto.</span></div>`;
+}
+
+function fmtDuration(months) {
+  const y = Math.floor(months / 12), m = months % 12;
+  if (y <= 0) return `${m} mes${m === 1 ? "e" : "i"}`;
+  if (m === 0) return `${y} ann${y === 1 ? "o" : "i"}`;
+  return `${y} ann${y === 1 ? "o" : "i"} e ${m} mes${m === 1 ? "e" : "i"}`;
 }
 
 function drawPacChart(labels, value, invested) {
