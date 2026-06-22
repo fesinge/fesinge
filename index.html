@@ -262,6 +262,28 @@
           <div class="chart-wrap tall"><canvas id="pacChart"></canvas></div>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Obiettivo &amp; indipendenza finanziaria (FIRE) 🔥</h2>
+          <p class="muted">Usa capitale, versamento e rendimento qui sopra. Il "numero FIRE" stima il capitale che, al 4% di prelievo annuo, copre le tue spese. Stima educativa.</p>
+        </div>
+        <div class="goal-grid">
+          <div class="field">
+            <label>Obiettivo da raggiungere (€)</label>
+            <input type="number" id="gTarget" value="100000" min="0" step="any" />
+          </div>
+          <div class="field">
+            <label>Spesa annua desiderata (€)</label>
+            <input type="number" id="gSpend" value="20000" min="0" step="any" />
+          </div>
+          <div class="field">
+            <label>Tasso di prelievo sicuro: <strong id="gSwrLabel">4%</strong></label>
+            <input type="range" id="gSwr" min="2" max="6" step="0.25" value="4" />
+          </div>
+        </div>
+        <div class="tips" id="goalOut"></div>
+      </div>
     </section>
   </main>
 
