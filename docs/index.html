@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>fesinge — Design digitale</title>
+  <meta name="description" content="Store di prodotti digitali di design: UI kit, template e risorse. Acquisto e consegna automatici." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===================== PROMO BAR ===================== -->
+  <div class="promo" id="promo-bar" hidden></div>
+
+  <!-- ===================== NAV ===================== -->
+  <header class="nav" id="nav">
+    <div class="container nav__inner">
+      <a href="#top" class="brand" data-brand-name>fesinge</a>
+      <nav class="nav__links">
+        <a href="#prodotti">Prodotti</a>
+        <a href="#come-funziona">Come funziona</a>
+        <a href="#newsletter">Newsletter</a>
+      </nav>
+      <a href="#prodotti" class="btn btn--small">Acquista</a>
+    </div>
+  </header>
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero" id="top">
+    <div class="container hero__inner">
+      <p class="eyebrow">Rendita passiva · 2026</p>
+      <h1 class="hero__title">
+        Design digitale che <span class="grad">lavora per te</span>,
+        anche mentre sei offline.
+      </h1>
+      <p class="hero__sub" data-brand-tagline></p>
+      <div class="hero__cta">
+        <a href="#prodotti" class="btn">Scopri i prodotti</a>
+        <a href="#come-funziona" class="btn btn--ghost">Come funziona</a>
+      </div>
+      <ul class="hero__trust">
+        <li>⚡ Consegna automatica</li>
+        <li>🔒 Pagamenti sicuri</li>
+        <li>🌙 Vende 24/7</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== PRODOTTI ===================== -->
+  <section class="section" id="prodotti">
+    <div class="container">
+      <div class="section__head">
+        <h2>I prodotti</h2>
+        <p>Creali una volta. Vendili all'infinito.</p>
+      </div>
+      <div class="grid" id="product-grid"><!-- generato da app.js --></div>
+    </div>
+  </section>
+
+  <!-- ===================== AD SLOT ===================== -->
+  <div class="container ad-wrap" id="ad-slot" hidden></div>
+
+  <!-- ===================== COME FUNZIONA ===================== -->
+  <section class="section section--alt" id="come-funziona">
+    <div class="container">
+      <div class="section__head">
+        <h2>Come funziona</h2>
+        <p>Tu lo prepari una volta, poi gira da solo.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="step__num">1</span>
+          <h3>Crei il prodotto</h3>
+          <p>UI kit, template o e-book. Il tuo talento di designer diventa un file da vendere.</p>
+        </div>
+        <div class="step">
+          <span class="step__num">2</span>
+          <h3>Colleghi Stripe</h3>
+          <p>Un link di pagamento gestisce incasso e consegna del file. Zero server, zero gestione.</p>
+        </div>
+        <div class="step">
+          <span class="step__num">3</span>
+          <h3>Incassi offline</h3>
+          <p>Il cliente compra e riceve tutto in automatico. Tu vivi la tua vita, il sito vende.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== NEWSLETTER ===================== -->
+  <section class="section" id="newsletter">
+    <div class="container">
+      <div class="newsletter" id="newsletter-card">
+        <div>
+          <h2>Resta aggiornata 💌</h2>
+          <p>Nuovi prodotti, sconti e risorse gratuite. Niente spam.</p>
+        </div>
+        <form class="newsletter__form" id="newsletter-form" method="post">
+          <input type="email" name="email" placeholder="La tua email" required aria-label="Email" />
+          <button class="btn" type="submit">Iscriviti</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <span data-brand-name>fesinge</span>
+      <div class="footer__social" id="footer-social"></div>
+      <small>© <span id="year"></span> · Costruito per monetizzare offline.</small>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

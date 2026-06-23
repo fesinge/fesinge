@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grazie per l'acquisto! · fesinge</title>
+  <meta name="robots" content="noindex" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .thanks { min-height: 80vh; display: grid; place-items: center; text-align: center; }
+    .thanks__card {
+      max-width: 520px; background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 3rem 2rem;
+    }
+    .thanks__check {
+      width: 76px; height: 76px; margin: 0 auto 1.5rem; border-radius: 50%;
+      display: grid; place-items: center; font-size: 2.2rem;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      box-shadow: var(--shadow);
+    }
+    .thanks h1 { font-size: 2rem; margin-bottom: .75rem; }
+    .thanks p { color: var(--muted); margin-bottom: 1.5rem; }
+  </style>
+</head>
+<body>
+  <main class="container thanks">
+    <div class="thanks__card">
+      <div class="thanks__check">✓</div>
+      <h1>Grazie! 🎉</h1>
+      <p>
+        Il tuo acquisto è andato a buon fine. Trovi il file da scaricare
+        nell'email di conferma che ti è appena arrivata
+        (controlla anche lo spam, per sicurezza).
+      </p>
+      <p>Hai bisogno di aiuto? Scrivimi a <strong id="contact-email">info</strong>.</p>
+      <a href="index.html" class="btn">Torna allo store</a>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script>
+    (function () {
+      var S = window.STORE || {};
+      if (S.brand) {
+        document.title = "Grazie per l'acquisto! · " + (S.brand.name || "");
+        if (S.brand.email) {
+          var el = document.getElementById("contact-email");
+          el.textContent = S.brand.email;
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
